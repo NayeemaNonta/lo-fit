@@ -3,7 +3,7 @@
 # model_name="llama2-llama2_13B-base";
 # task="clutrr";
 # seed=42;
-# CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
 #     --task $task \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
@@ -22,7 +22,7 @@
 #     --eval_batch 32 \
 #     --train_size 300 \
 #     --seed $seed;
-# CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
 #     --task $task  \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
@@ -46,7 +46,7 @@
 model_name="llama2_7B";
 task="clutrr";
 seed=42;
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -65,7 +65,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
     --eval_batch 32 \
     --train_size 300 \
     --seed $seed;
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task  \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -89,7 +89,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
 # model_name="gemma_7b";
 # task="clutrr";
 # seed=42;
-# CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
 #     --task $task \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
@@ -108,7 +108,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
 #     --eval_batch 32 \
 #     --train_size 300 \
 #     --seed $seed;
-# CUDA_VISIBLE_DEVICES=5 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=5 python3 lofit_trainer.py \
 #     --task $task  \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \

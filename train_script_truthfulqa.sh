@@ -89,7 +89,7 @@ task="truthfulqa";
 seed=42;
 echo $model_name;
 ### Experiments for fold 0 of truthulfqa two-fold cross validation
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -108,7 +108,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
     --l1_lambda 5e-4 \
     --eval_batch 32 \
     --seed $seed;
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task  \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -129,7 +129,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
     --eval_batch 32 \
     --seed $seed;
 ### Experiments for fold 1 of truthulfqa two-fold cross validation
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -148,7 +148,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
     --l1_lambda 5e-4 \
     --eval_batch 32 \
     --seed $seed;
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task  \
     --base_model_name $model_name \
     --apply_chat_template False \

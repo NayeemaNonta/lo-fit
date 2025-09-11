@@ -3,7 +3,7 @@
 # model_name="gemma_7b";
 # task="mquake";
 # seed=42;
-# CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
 #     --task $task \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
@@ -21,7 +21,7 @@
 #     --l1_lambda 5e-4 \
 #     --eval_batch 32 \
 #     --seed $seed;
-# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python33 lofit_trainer.py \
 #     --task $task  \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
@@ -44,7 +44,7 @@
 model_name="llama2_7B";
 task="mquake";
 seed=42;
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -62,7 +62,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
     --l1_lambda 1e-3 \
     --eval_batch 32 \
     --seed $seed;
-CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --task $task  \
     --base_model_name $model_name \
     --apply_chat_template False \
@@ -85,7 +85,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
 # model_name="llama2_13B";
 # task="mquake";
 # seed=42;
-# CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
 #     --task $task \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
@@ -103,7 +103,7 @@ CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
 #     --l1_lambda 1e-3 \
 #     --eval_batch 32 \
 #     --seed $seed;
-# CUDA_VISIBLE_DEVICES=0 python lofit_trainer.py \
+# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
 #     --task $task  \
 #     --base_model_name $model_name \
 #     --apply_chat_template False \
