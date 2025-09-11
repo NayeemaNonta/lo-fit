@@ -47,7 +47,13 @@ parser.add_argument('--use_topk_heads',type=int,help='The number of top attentio
 args = parser.parse_args()
 ### Turn Wandb log on if it is in train mode
 if args.run_mode == 'train_wandb':
-    wandb.init(mode="online",name=args.output_dir.split("/")[-1])
+    wandb.init(
+    project="GSPE-new",
+    entity="nayeema",
+    name=args.output_dir.split("/")[-1] if args.output_dir else None,
+    mode="online"
+)
+
 else:
     wandb.init(mode="disabled")
 ### Load training hyperparametres
