@@ -225,6 +225,8 @@ training_args = TrainingArguments(
 )
 torch.autograd.set_detect_anomaly(True)
 datasets = task_map[args.task]['dataloader'].load_data(train_size=args.train_size)
+print(f"Data loaded for task {args.task}")
+print(f"Split sizes — train: {len(datasets['train'])}, val: {len(datasets['val'])}, test: {len(datasets['test'])}")
 for key in ['train','val','test']:
     print(f"Number of {key} samples: {len(datasets[key])}")
     # print(datasets[key])
