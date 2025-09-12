@@ -38,7 +38,7 @@ parser.add_argument('--base_model_name',type=str,default='llama2-7b-base',help='
 parser.add_argument('--lofit_component',type=str,default='full',help='Choose the components to apply acfit. A: head selection step; v: bias tuning step',required=False)
 parser.add_argument('--ft_method',type=str,default='lofit',help='fine-tuning method to apply',required=True)
 parser.add_argument('--lofit_heads',type=str,default=None,help='Load a .npy file where the top heads from the head selection step are stored',required=False)
-parser.add_argument('--hf_cache_dir',type=str,default='/data/users/fcyin/.cache',required=False,help='The cache directory for huggingface models')
+parser.add_argument('--hf_cache_dir',type=str,default='./data/users/fcyin/.cache',required=False,help='The cache directory for huggingface models')
 parser.add_argument('--device',type=str,default='cuda',required=False,help='The device to load the model; cuda by default')
 parser.add_argument('--save_strategy',type=str,default='best',required=False,help='The strategy to save the model: best: only save the best model; no: do not save the model')
 parser.add_argument('--tqa_fold_num',type=int,default=0,required=False,help='The fold number to use for truthfulqa; can only be 0 or 1 for two-fold cross validation')
@@ -98,6 +98,7 @@ models_map = {
     'llama2_7B': 'meta-llama/Llama-2-7b-hf',
     'llama2_13B': 'meta-llama/Llama-2-13b-hf', 
     'gemma_7b': 'google/gemma-7b',
+    'llama3_1B_instruct': 'meta-llama/Llama-3.2-1B-Instruct'
     # 'llama2-7b-chat': '/data/shared_resources/models/llama2/hf/llama-2-7b-chat',
     # 'llama2-7b-base': '/data/shared_resources/models/llama2/hf/llama-2-7b',
     # 'llama2-13b-base': '/data/shared_resources/models/llama2/hf/llama-2-13b',
