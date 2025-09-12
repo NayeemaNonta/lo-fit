@@ -1,4 +1,23 @@
 # coding=utf-8
+# Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
+#
+# This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
+# and OPT implementations in this library. It has been modified from its
+# original forms to accommodate minor architectural differences compared
+# to GPT-NeoX and OPT used by the Meta AI team that trained the model.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" PyTorch LLaMA model."""
 import math
 from typing import List, Optional, Tuple, Union
 
@@ -12,13 +31,50 @@ from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutpu
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers import AutoModelForCausalLM
 
 
 logger = logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "LlamaConfig"
 
+
+# Add near the top of the file (with other imports)
+from typing import Optional, Dict, Any
+
+def _normalize_rope_scaling(cfg) -> Optional[Dict[str, Any]]:
+    """
+    Normalize rope_scaling so older custom code can handle both
+    Llama-2 style {'type': 'linear'|'dynamic', 'factor': ...}
+    and Llama-3 style {
+        'factor': 8.0, 'low_freq_factor': 1.0, 'high_freq_factor': 4.0,
+        'original_max_position_embeddings': 8192, 'rope_type': 'llama3'
+    }.
+    Returns None if no scaling is set.
+    """
+    rs = getattr(cfg, "rope_scaling", None)
+    if rs is None:
+        return None
+    if isinstance(rs, dict) and "type" in rs:
+        # Already in the Llama-2 format your code expects
+        return rs
+
+    # Llama-3 format → convert to a dict with a 'type'
+    if isinstance(rs, dict) and ("rope_type" in rs or "factor" in rs):
+        factor = rs.get("factor", 1.0)
+        rope_type = rs.get("rope_type", "llama3")
+        # Keep the extra keys so downstream code can still use them if needed
+        normalized = {
+            "type": "llama3",  # set an explicit type your code can branch on
+            "factor": factor,
+        }
+        # Preserve Llama-3 keys for completeness
+        for k in ("low_freq_factor", "high_freq_factor", "original_max_position_embeddings", "rope_type"):
+            if k in rs:
+                normalized[k] = rs[k]
+        return normalized
+
+    # Fallback: treat as linear scaling if it's some unknown structure
+    return {"type": "linear", "factor": 1.0}
 
 # Copied from transformers.models.bart.modeling_bart._make_causal_mask
 def _make_causal_mask(
@@ -218,7 +274,7 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
 class LlamaAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: LlamaConfig,applied_module: str = None, gate_hp={'temperature': 0.33, 'stretch_limits': (-0.1, 1.1), 'eps': 1e-6}):
+    def __init__(self, config: LlamaConfig,applied_module: str = None):
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
@@ -240,25 +296,20 @@ class LlamaAttention(nn.Module):
         self.attn_A = nn.ParameterList([nn.Parameter(torch.zeros(self.head_dim,requires_grad=True),requires_grad=True) for _ in range(self.num_heads)])
         ### Attn_v: The trainable vector of LoFiT bias
         self.attn_v = nn.ParameterList([nn.Parameter(torch.zeros(self.head_dim,requires_grad=True),requires_grad=True) for _ in range(self.num_heads)])
-        ## add gate support
-        self.gate_hp = gate_hp
-        self.temperature = gate_hp["temperature"]
-        self.stretch_limits = gate_hp["stretch_limits"]
-        self.eps = gate_hp["eps"]
-
-        self.log_g1 = nn.Parameter(torch.empty([self.num_heads, 1]))
-        self.log_g2 = nn.Parameter(torch.empty([self.num_heads, 1]))
-
-        self.applied_module = applied_module
+        ### If appplied_module == 'attention,' LoFiT is applied to the attention output
+        self.applied_module = None
         self._init_rope()
 
     def _init_rope(self):
-        self.config.rope_scaling = None
         if self.config.rope_scaling is None:
             self.rotary_emb = LlamaRotaryEmbedding(self.head_dim, max_position_embeddings=self.max_position_embeddings)
         else:
-            scaling_type = self.config.rope_scaling["type"]
-            scaling_factor = self.config.rope_scaling["factor"]
+            self.config.rope_scaling = _normalize_rope_scaling(self.config)
+            rs = self.config.rope_scaling
+            scaling_type = rs["type"] if rs is not None else None
+            scaling_factor = rs.get("factor", 1.0) if rs is not None else 1.0
+            # scaling_type = self.config.rope_scaling["type"]
+            # scaling_factor = self.config.rope_scaling["factor"]
             if scaling_type == "linear":
                 self.rotary_emb = LlamaLinearScalingRotaryEmbedding(
                     self.head_dim, max_position_embeddings=self.max_position_embeddings, scaling_factor=scaling_factor
@@ -272,22 +323,6 @@ class LlamaAttention(nn.Module):
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-
-
-    def get_gates(self, log_gate):
-        is_train = self.training
-        low, high = self.stretch_limits
-        if is_train:
-            shape = log_gate.size()
-            noise = (1 - 2*self.eps) * torch.rand(shape).to(log_gate.device) + self.eps
-            concrete = torch.sigmoid((torch.log(noise) - torch.log(1 - noise) + log_gate) / self.temperature)
-        else:
-            concrete = torch.sigmoid(log_gate)
-
-        stretched_concrete = concrete * (high - low) + low
-        clipped_concrete = torch.clamp(stretched_concrete, 0, 1)
-        return clipped_concrete
-
 
     def forward(
         self,
@@ -370,12 +405,10 @@ class LlamaAttention(nn.Module):
 
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
-        ## Apply gate to the attention output
+        ## Apply LoFiT to the attention output
         if self.applied_module == 'attention':
-            g1_final = self.get_gates(self.log_g1)
-            g2_final = self.get_gates(self.log_g2)
-            for i,(A,v,g1,g2) in enumerate(zip(self.attn_A,self.attn_v, g1_final, g2_final)):
-                attn_output[:,:,i*self.head_dim:(i+1)*self.head_dim] = torch.mul(A * g2 + 1,  attn_output[:,:,i*self.head_dim:(i+1)*self.head_dim].clone()) + g1 * v
+            for i,(A,v) in enumerate(zip(self.attn_A,self.attn_v)):
+                attn_output[:,:,i*self.head_dim:(i+1)*self.head_dim] = torch.mul(A+1,attn_output[:,:,i*self.head_dim:(i+1)*self.head_dim].clone()) + v
                 
 
         if self.config.pretraining_tp > 1:
@@ -588,6 +621,7 @@ class LlamaModel(LlamaPreTrainedModel):
         self.gradient_checkpointing = False
         # Initialize weights and apply final processing
         self.post_init()
+    ### Set which modules and layers to apply LoFiT
     def set_applied_modules_to_layers(self,applied_module:str,applied_layers:List[int] = None):
         if applied_layers is None:
             applied_layers = list(range(len(self.layers)))
@@ -752,221 +786,7 @@ class LlamaModel(LlamaPreTrainedModel):
         )
 
 
-class JoLAModel(LlamaPreTrainedModel):
-    _tied_weights_keys = ["lm_head.weight"]
-    def __init__(self, config):
-        super().__init__(config)
-        self.model = LlamaModel(config)
-        self.vocab_size = config.vocab_size
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        
-        # Initialize weights and apply final processing
-        self.post_init()
-
-    @classmethod
-    def jola_from_pretrained(
-        cls,
-        pretrained_model_name_or_path,
-        *model_args,
-        cache_dir: Optional,
-        applied_module: Optional[str] = 'attention',
-        applied_layers:Optional[List[int]] = None,
-        torch_dtype: Optional[torch.dtype] = torch.float32,
-        **kwargs,
-    ):    
-        model = cls.from_pretrained(
-        pretrained_model_name_or_path,
-        torch_dtype=torch_dtype,
-        )
-        ### Set which modules and layers to apply LoFiT
-        model.model.set_applied_modules_to_layers(applied_module,applied_layers)
-        return model
-    
-
-    def unfreeze_jola_params(self):
-        ### First freeze all pretrained parameters
-        for param in self.model.parameters():
-            param.requires_grad = False
-        for i in range(self.model.config.num_hidden_layers):
-            attn_A = self.model.layers[i].self_attn.attn_A
-            for j,module in enumerate(attn_A):
-                module.requires_grad = True
-            attn_v = self.model.layers[i].self_attn.attn_v
-            for j,module in enumerate(attn_v):
-                module.requires_grad = True
-            g1 = self.model.layers[i].self_attn.log_g1
-            g1.requires_grad = True
-            g2 = self.model.layers[i].self_attn.log_g2
-            g2.requires_grad = True
-        
-        ## initialize jola parameters
-        for i in range(self.model.config.num_hidden_layers):
-            attn_A = self.model.layers[i].self_attn.attn_A
-            for j,module in enumerate(attn_A):
-                nn.init.normal_(module,mean=0,std=1e-3)
-            attn_v = self.model.layers[i].self_attn.attn_v
-            for j,module in enumerate(attn_v):
-                nn.init.normal_(module,mean=0,std=1e-3)
-            
-            g1 = self.model.layers[i].self_attn.log_g1
-            nn.init.xavier_uniform_(g1)
-            g2 = self.model.layers[i].self_attn.log_g2
-            nn.init.xavier_uniform_(g2)
-        
-
-    def get_input_embeddings(self):
-        return self.model.embed_tokens
-
-    def set_input_embeddings(self, value):
-        self.model.embed_tokens = value
-
-    def get_output_embeddings(self):
-        return self.lm_head
-
-    def set_output_embeddings(self, new_embeddings):
-        self.lm_head = new_embeddings
-
-    def set_decoder(self, decoder):
-        self.model = decoder
-
-    def get_decoder(self):
-        return self.model
-
-    @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=CausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
-    def forward(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None
-    ) -> Union[Tuple, CausalLMOutputWithPast]:
-        r"""
-        Args:
-            labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
-                config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
-                (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
-
-        Returns:
-
-        Example:
-
-        ```python
-        >>> from transformers import AutoTokenizer, LlamaForCausalLM
-
-        >>> model = LlamaForCausalLM.from_pretrained(PATH_TO_CONVERTED_WEIGHTS)
-        >>> tokenizer = AutoTokenizer.from_pretrained(PATH_TO_CONVERTED_TOKENIZER)
-
-        >>> prompt = "Hey, are you conscious? Can you talk to me?"
-        >>> inputs = tokenizer(prompt, return_tensors="pt")
-
-        >>> # Generate
-        >>> generate_ids = model.generate(inputs.input_ids, max_length=30)
-        >>> tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-        "Hey, are you conscious? Can you talk to me?\nI'm not conscious, but I can talk to you."
-        ```"""
-
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
-        outputs = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict
-        )
-
-        hidden_states = outputs[0]
-        if self.config.pretraining_tp > 1:
-            lm_head_slices = self.lm_head.weight.split(self.vocab_size // self.config.pretraining_tp, dim=0)
-            logits = [F.linear(hidden_states, lm_head_slices[i]) for i in range(self.config.pretraining_tp)]
-            logits = torch.cat(logits, dim=-1)
-        else:
-            logits = self.lm_head(hidden_states)
-        logits = logits.float()
-
-        loss = None
-        if labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = CrossEntropyLoss()
-            shift_logits = shift_logits.view(-1, self.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Enable model parallelism
-            shift_labels = shift_labels.to(shift_logits.device)
-            loss = loss_fct(shift_logits, shift_labels)
-
-        if not return_dict:
-            output = (logits,) + outputs[1:]
-            return (loss,) + output if loss is not None else output
-
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
-
-    def prepare_inputs_for_generation(
-        self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs
-    ):
-        if past_key_values:
-            input_ids = input_ids[:, -1:]
-
-        position_ids = kwargs.get("position_ids", None)
-        if attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
-
-        # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
-        if inputs_embeds is not None and past_key_values is None:
-            model_inputs = {"inputs_embeds": inputs_embeds}
-        else:
-            model_inputs = {"input_ids": input_ids}
-
-        model_inputs.update(
-            {
-                "position_ids": position_ids,
-                "past_key_values": past_key_values,
-                "use_cache": kwargs.get("use_cache"),
-                "attention_mask": attention_mask,
-            }
-        )
-        return model_inputs
-
-    @staticmethod
-    def _reorder_cache(past_key_values, beam_idx):
-        reordered_past = ()
-        for layer_past in past_key_values:
-            reordered_past += (
-                tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past),
-            )
-        return reordered_past
-
-
-class AutoForCausalLM(AutoModelForCausalLM):
+class LlamaForCausalLM(LlamaPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
     def __init__(self, config):
         super().__init__(config)
@@ -995,37 +815,10 @@ class AutoForCausalLM(AutoModelForCausalLM):
         ### Set which modules and layers to apply LoFiT
         model.model.set_applied_modules_to_layers(applied_module,applied_layers)
         return model
-    
-    def unfreeze_jola_params(self):
-        ### First freeze all pretrained parameters
-        for param in self.model.parameters():
-            param.requires_grad = False
-        for i in range(self.model.config.num_hidden_layers):
-            attn_A = slef.model.model.layers[i].self_attn.attn_A
-            for j,module in enumerate(attn_A):
-                module.requires_grad = True
-            attn_v = model.model.layers[i].self_attn.attn_v
-            for j,module in enumerate(attn_v):
-                module.requires_grad = True
-            g1 = self.model.model.layers[i].self_attn.log_g1
-            g1.requires_grad = True
-            g2 = self.model.model.layers[i].self_attn.log_g2
-            g2.requires_grad = True
-        
-        ## initialize jola parameters
-        for i in range(self.model.config.num_hidden_layers):
-            attn_A = self.model.model.layers[i].self_attn.attn_A
-            for j,module in enumerate(attn_A):
-                nn.init.normal_(module,mean=0,std=1e-3)
-            attn_v = self.model.model.layers[i].self_attn.attn_v
-            for j,module in enumerate(attn_v):
-                nn.init.normal_(module,mean=0,std=1e-3)
-            
-            g1 = self.model.model.layers[i].self_attn.log_g1
-            nn.init.xavier_uniform_(g1)
-            g2 = self.model.model.layers[i].self_attn.log_g2
-            nn.init.xavier_uniform_(g2)
 
+
+
+        
 
     def get_input_embeddings(self):
         return self.model.embed_tokens
@@ -1177,7 +970,6 @@ class AutoForCausalLM(AutoModelForCausalLM):
                 tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past),
             )
         return reordered_past
-
 
 
 @add_start_docstrings(
