@@ -38,6 +38,44 @@ logger = logging.get_logger(__name__)
 _CONFIG_FOR_DOC = "LlamaConfig"
 
 
+# Add near the top of the file (with other imports)
+from typing import Optional, Dict, Any
+
+def _normalize_rope_scaling(cfg) -> Optional[Dict[str, Any]]:
+    """
+    Normalize rope_scaling so older custom code can handle both
+    Llama-2 style {'type': 'linear'|'dynamic', 'factor': ...}
+    and Llama-3 style {
+        'factor': 8.0, 'low_freq_factor': 1.0, 'high_freq_factor': 4.0,
+        'original_max_position_embeddings': 8192, 'rope_type': 'llama3'
+    }.
+    Returns None if no scaling is set.
+    """
+    rs = getattr(cfg, "rope_scaling", None)
+    if rs is None:
+        return None
+    if isinstance(rs, dict) and "type" in rs:
+        # Already in the Llama-2 format your code expects
+        return rs
+
+    # Llama-3 format → convert to a dict with a 'type'
+    if isinstance(rs, dict) and ("rope_type" in rs or "factor" in rs):
+        factor = rs.get("factor", 1.0)
+        rope_type = rs.get("rope_type", "llama3")
+        # Keep the extra keys so downstream code can still use them if needed
+        normalized = {
+            "type": "llama3",  # set an explicit type your code can branch on
+            "factor": factor,
+        }
+        # Preserve Llama-3 keys for completeness
+        for k in ("low_freq_factor", "high_freq_factor", "original_max_position_embeddings", "rope_type"):
+            if k in rs:
+                normalized[k] = rs[k]
+        return normalized
+
+    # Fallback: treat as linear scaling if it's some unknown structure
+    return {"type": "linear", "factor": 1.0}
+
 # Copied from transformers.models.bart.modeling_bart._make_causal_mask
 def _make_causal_mask(
     input_ids_shape: torch.Size, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0
@@ -266,8 +304,12 @@ class LlamaAttention(nn.Module):
         if self.config.rope_scaling is None:
             self.rotary_emb = LlamaRotaryEmbedding(self.head_dim, max_position_embeddings=self.max_position_embeddings)
         else:
-            scaling_type = self.config.rope_scaling["type"]
-            scaling_factor = self.config.rope_scaling["factor"]
+            self.config.rope_scaling = _normalize_rope_scaling(self.config)
+            rs = self.config.rope_scaling
+            scaling_type = rs["type"] if rs is not None else None
+            scaling_factor = rs.get("factor", 1.0) if rs is not None else 1.0
+            # scaling_type = self.config.rope_scaling["type"]
+            # scaling_factor = self.config.rope_scaling["factor"]
             if scaling_type == "linear":
                 self.rotary_emb = LlamaLinearScalingRotaryEmbedding(
                     self.head_dim, max_position_embeddings=self.max_position_embeddings, scaling_factor=scaling_factor
