@@ -28,7 +28,7 @@ class CustomDPOTrainer(DPOTrainer):
     def get_batch_samples(self, *args, **kwargs):
         return [], 0
         
-    def compute_loss(self, model, inputs,return_outputs=False):
+    def compute_loss(self, model, inputs,return_outputs=False, num_items_in_batch: int = None):
         compute_loss_context_manager = torch.cuda.amp.autocast if self._peft_has_been_casted_to_bf16 else nullcontext
 
         with compute_loss_context_manager():
