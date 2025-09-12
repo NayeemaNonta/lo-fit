@@ -1,7 +1,8 @@
 from datasets import Dataset,DatasetDict, load_dataset
 import json,os
 import pandas as pd
-from transformers import AutoTokenizer, TrainingArguments, DataCollatorWithPadding, AutoModelForCausalLM,get_linear_schedule_with_warmup, Trainer,DataCollatorForLanguageModeling, BitsAndBytesConfig,AdamW,set_seed
+from transformers import AutoTokenizer, TrainingArguments, DataCollatorWithPadding, AutoModelForCausalLM,get_linear_schedule_with_warmup, Trainer,DataCollatorForLanguageModeling, BitsAndBytesConfig,set_seed
+from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from models.modeling_llama import LlamaModel,LlamaForCausalLM
 import torch 
