@@ -84,6 +84,7 @@
 #     --eval_batch 32 \
 #     --seed $seed;
 ## Uncomment the following to run experiments for: llama2_7B
+set -euo pipefail
 model_name="llama3_8B_instruct";
 task="truthfulqa";
 seed=42;
