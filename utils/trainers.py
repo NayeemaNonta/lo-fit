@@ -25,6 +25,9 @@ class CustomDPOTrainer(DPOTrainer):
         # force-disable generation during training
         self.generate_during_training = False
         
+    def get_batch_samples(self, *args, **kwargs):
+        return [], 0
+        
     def compute_loss(self, model, inputs,return_outputs=False):
         compute_loss_context_manager = torch.cuda.amp.autocast if self._peft_has_been_casted_to_bf16 else nullcontext
 
