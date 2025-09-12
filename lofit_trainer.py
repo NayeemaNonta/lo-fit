@@ -20,6 +20,19 @@ from peft import LoraConfig, TaskType, get_peft_model, LoraModel, PeftModel
 from utils.dataloaders import TQA,MQUAKE,CLUTRR
 from utils.trainers import CustomDPOTrainer,CustomSFTTrainer
 
+from inspect import signature
+from trl.trainer.dpo_trainer import DPOTrainer
+
+# If TRL's DPOTrainer doesn't yet accept `device`, add a wrapper.
+if "device" not in str(signature(DPOTrainer.get_batch_samples)):
+    _orig_get_batch_samples = DPOTrainer.get_batch_samples
+
+    def _patched_get_batch_samples(self, epoch_iterator, num_batches, device=None):
+        # ignore device (old TRL doesn't use it) and delegate
+        return _orig_get_batch_samples(self, epoch_iterator, num_batches)
+
+    DPOTrainer.get_batch_samples = _patched_get_batch_samples
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr',type=float,default=1e-4)
 parser.add_argument('--train_batch',type=int,default=16)
