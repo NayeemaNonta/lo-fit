@@ -84,7 +84,7 @@
 #     --eval_batch 32 \
 #     --seed $seed;
 ## Uncomment the following to run experiments for: llama2_7B
-model_name="llama3_1B_instruct";
+model_name="llama3_8B_instruct";
 task="truthfulqa";
 seed=42;
 echo $model_name;
