@@ -17,6 +17,14 @@ from contextlib import contextmanager, nullcontext
 import random
 from utils.evaluate import evaluate_mquake,evaluate_clutrr,evaluate_tqa
 class CustomDPOTrainer(DPOTrainer):
+    def __init__(self, *args, **kwargs):
+        # silently drop generate_during_training if passed
+        kwargs.pop("generate_during_training", None)
+        super().__init__(*args, **kwargs)
+
+        # force-disable generation during training
+        self.generate_during_training = False
+        
     def compute_loss(self, model, inputs,return_outputs=False):
         compute_loss_context_manager = torch.cuda.amp.autocast if self._peft_has_been_casted_to_bf16 else nullcontext
 
