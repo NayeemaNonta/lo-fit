@@ -266,7 +266,7 @@ if args.task == 'truthfulqa':
         ### Temperature for DPO training
         beta = args.dpo_beta,
         ### Precompute log probabilities of data of the reference model to speed up training and save GPU memory
-        precompute_ref_log_probs=True
+        precompute_ref_log_probs=True,
         generate_during_training=False,
     )
 elif args.task in ['mquake','clutrr']:
