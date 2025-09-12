@@ -58,7 +58,7 @@ CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --train_batch 8 \
     --num_epoch 5 \
     --output_dir "./finetuned_checkpoints/${task}/${model_name}_${task}_Aonly_seed${seed}"\
-    --run_mode train \
+    --run_mode train_wandb \
     --output_file_name "./finetuned_outputs/${task}/${model_name}_${task}_Aonly_seed${seed}"\
     --applied_module attention \
     --save_strategy no \
@@ -78,7 +78,7 @@ CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
     --train_batch 8 \
     --num_epoch 5 \
     --output_dir "./finetuned_checkpoints/${task}/${model_name}_${task}_lofit_seed${seed}"\
-    --run_mode train \
+    --run_mode train_wandb \
     --output_file_name "./finetuned_outputs/${task}/${model_name}_${task}_lofit_seed${seed}"\
     --applied_module attention \
     --save_strategy no \
