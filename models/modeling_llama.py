@@ -1759,6 +1759,38 @@ LLAMA_START_DOCSTRING = r"""
     This model is also a PyTorch `nn.Module` subclass.
 """
 
+LLAMA_INPUTS_DOCSTRING = r"""
+    Args:
+        input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
+            Indices of input sequence tokens in the vocabulary.
+
+        attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Mask to avoid performing attention on padding tokens (1 = keep, 0 = mask).
+
+        position_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Position indices for rotary embeddings.
+
+        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*):
+            Pre-computed key/value states for fast autoregressive decoding. Length =
+            `config.num_hidden_layers`; each element is a tuple of 2 tensors with shape
+            `(batch_size, num_heads, past_sequence_length, head_dim)`.
+
+        inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`, *optional*):
+            Alternative to `input_ids` to directly pass embeddings.
+
+        use_cache (`bool`, *optional*):
+            Whether to return `past_key_values` to speed up generation.
+
+        output_attentions (`bool`, *optional*):
+            Whether to return attention weights.
+
+        output_hidden_states (`bool`, *optional*):
+            Whether to return the hidden states of all layers.
+
+        return_dict (`bool`, *optional*):
+            If `True`, return a `ModelOutput`; otherwise return a tuple.
+    """
+
 @add_start_docstrings("The bare LLaMA Model outputting raw hidden-states without any specific head on top.", LLAMA_START_DOCSTRING)
 class LlamaPreTrainedModel(PreTrainedModel):
     config_class = LlamaConfig
@@ -1828,38 +1860,6 @@ class LlamaModel(LlamaPreTrainedModel):
             expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(inputs_embeds.device)
             combined_attention_mask = expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
         return combined_attention_mask
-    
-    LLAMA_INPUTS_DOCSTRING = r"""
-    Args:
-        input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-            Indices of input sequence tokens in the vocabulary.
-
-        attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Mask to avoid performing attention on padding tokens (1 = keep, 0 = mask).
-
-        position_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Position indices for rotary embeddings.
-
-        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*):
-            Pre-computed key/value states for fast autoregressive decoding. Length =
-            `config.num_hidden_layers`; each element is a tuple of 2 tensors with shape
-            `(batch_size, num_heads, past_sequence_length, head_dim)`.
-
-        inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`, *optional*):
-            Alternative to `input_ids` to directly pass embeddings.
-
-        use_cache (`bool`, *optional*):
-            Whether to return `past_key_values` to speed up generation.
-
-        output_attentions (`bool`, *optional*):
-            Whether to return attention weights.
-
-        output_hidden_states (`bool`, *optional*):
-            Whether to return the hidden states of all layers.
-
-        return_dict (`bool`, *optional*):
-            If `True`, return a `ModelOutput`; otherwise return a tuple.
-    """
 
 
     @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
