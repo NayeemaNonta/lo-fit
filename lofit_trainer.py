@@ -166,12 +166,33 @@ else:
 peft_config = None
 if args.ft_method == 'lofit':
     if 'llama' in model_name:
-        model = LlamaForCausalLM.custom_from_pretrained(model_name,
-                                                device_map=device, 
-                                                cache_dir=cache_dir,
-                                                applied_module = applied_module,
-                                                applied_layers = applied_layers,
-                                                torch_dtype=torch_dtype)
+        from transformers import LlamaConfig
+
+        # build the clean config FIRST
+        config = LlamaConfig.from_pretrained(
+            model_name,
+            rope_scaling={"type": "linear", "factor": 8.0}
+        )
+
+        # now load the model USING that config
+        model = LlamaForCausalLM.custom_from_pretrained(
+            model_name,
+            config=config,                 # <-- important
+            device_map=device,
+            cache_dir=cache_dir,
+            applied_module=applied_module,
+            applied_layers=applied_layers,
+            torch_dtype=torch_dtype
+        )
+        # model = LlamaForCausalLM.custom_from_pretrained(model_name,
+        #                                         device_map=device, 
+        #                                         cache_dir=cache_dir,
+        #                                         applied_module = applied_module,
+        #                                         applied_layers = applied_layers,
+        #                                         torch_dtype=torch_dtype)
+     
+
+
     elif 'gemma' in model_name:
         model = GemmaForCausalLM.custom_from_pretrained(model_name,
                                                 device_map=device, 
