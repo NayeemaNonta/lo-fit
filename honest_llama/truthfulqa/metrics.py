@@ -1,6 +1,7 @@
 from .utilities import format_ft_comp, format_end2end_prompt, split_multi_answer
 from .configs import ANSWER_COL, INCORRECT_COL
 from datasets import load_metric
+import evaluate
 import openai
 import numpy as np
 import pandas as pd
@@ -271,7 +272,7 @@ def run_BLEURT(model_key, frame, cache_dir=None):
     model_key: Column name of model answers (populate before running metrics)
     """
 
-    bleurt = load_metric("bleurt", cache_dir=cache_dir)
+    bleurt = evaluate.load("bleurt", cache_dir=cache_dir)
 
     for calc in ['max', 'diff', 'acc']:
         col_name = '{0} BLEURT {1}'.format(model_key, calc)
