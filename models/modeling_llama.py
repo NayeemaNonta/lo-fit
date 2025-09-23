@@ -757,23 +757,42 @@ class LlamaForCausalLM(HF_LlamaForCausalLM):
         self.post_init()
 
     @classmethod
+    # def custom_from_pretrained(
+    #     cls,
+    #     pretrained_model_name_or_path,
+    #     *model_args,
+    #     cache_dir: Optional,
+        
+    #     applied_module: Optional[str] = 'attention',
+    #     applied_layers:Optional[List[int]] = None,
+    #     torch_dtype: Optional[torch.dtype] = torch.float32,
+    #     **kwargs,
+    # ):    
+    #     model = cls.from_pretrained(
+    #     pretrained_model_name_or_path,
+    #     torch_dtype=torch_dtype,
+    #     )
+    #     ### Set which modules and layers to apply LoFiT
+    #     model.model.set_applied_modules_to_layers(applied_module,applied_layers)
+    #     return model
     def custom_from_pretrained(
         cls,
         pretrained_model_name_or_path,
         *model_args,
-        cache_dir: Optional,
         applied_module: Optional[str] = 'attention',
-        applied_layers:Optional[List[int]] = None,
+        applied_layers: Optional[List[int]] = None,
         torch_dtype: Optional[torch.dtype] = torch.float32,
         **kwargs,
-    ):    
-        model = cls.from_pretrained(
-        pretrained_model_name_or_path,
-        torch_dtype=torch_dtype,
+    ):
+        model = super().from_pretrained(
+            pretrained_model_name_or_path,
+            torch_dtype=torch_dtype,
+            attn_implementation="eager",   # 👈 force eager attention
+            **kwargs,
         )
-        ### Set which modules and layers to apply LoFiT
-        model.model.set_applied_modules_to_layers(applied_module,applied_layers)
+        model.model.set_applied_modules_to_layers(applied_module, applied_layers)
         return model
+
 
 
 
