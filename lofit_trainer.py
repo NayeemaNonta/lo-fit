@@ -115,7 +115,7 @@ models_map = {
     'gemma_7b': 'google/gemma-7b',
     'llama3_8B_instruct': 'meta-llama/Llama-3.1-8B-Instruct',
     'llama3_8B': 'meta-llama/Meta-Llama-3-8B', 
-    'llma3.2_1B': 'meta-llama/Llama-3.2-1B',
+    'llama3.2_1B': 'meta-llama/Llama-3.2-1B',
     
     # 'llama2-7b-chat': '/data/shared_resources/models/llama2/hf/llama-2-7b-chat',
     # 'llama2-7b-base': '/data/shared_resources/models/llama2/hf/llama-2-7b',

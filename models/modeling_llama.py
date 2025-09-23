@@ -31,6 +31,8 @@ from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutpu
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from transformers.models.llama.configuration_llama import LlamaConfig
+from transformers.models.llama.modeling_llama import LlamaForCausalLM as HF_LlamaForCausalLM
+
 
 
 logger = logging.get_logger(__name__)
@@ -789,7 +791,8 @@ class LlamaModel(LlamaPreTrainedModel):
         )
 
 
-class LlamaForCausalLM(LlamaPreTrainedModel):
+# class LlamaForCausalLM(LlamaPreTrainedModel):
+class LlamaForCausalLM(HF_LlamaForCausalLM):
     _tied_weights_keys = ["lm_head.weight"]
     def __init__(self, config):
         super().__init__(config)
