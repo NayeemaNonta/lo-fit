@@ -124,7 +124,7 @@ def main():
     m_base = LlamaForCausalLM.custom_from_pretrained(
         args.base_model,
         torch_dtype=torch_dtype,
-        attn_implementation="eager",
+        # attn_implementation="eager",
     ).to(device)
 
     # ---- Load finetuned model ----
@@ -139,7 +139,7 @@ def main():
     m_ft = LlamaForCausalLM.custom_from_pretrained(
         args.finetuned_path,
         torch_dtype=torch_dtype,
-        attn_implementation="eager",
+        # attn_implementation="eager",
     ).to(device)
 
     # ---- Generate ----
