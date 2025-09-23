@@ -681,9 +681,14 @@ class LlamaModel(LlamaPreTrainedModel):
         seq_length_with_past = seq_length
         past_key_values_length = 0
 
-        if past_key_values is not None:
-            past_key_values_length = past_key_values[0][0].shape[2]
-            seq_length_with_past = seq_length_with_past + past_key_values_length
+        # if past_key_values is not None:
+        #     past_key_values_length = past_key_values[0][0].shape[2]
+        #     seq_length_with_past = seq_length_with_past + past_key_values_length
+        if past_key_values is not None and len(past_key_values) > 0:
+            first_layer = past_key_values[0]
+            if first_layer is not None and first_layer[0] is not None:
+                past_key_values_length = first_layer[0].shape[2]
+                seq_length_with_past += past_key_values_length
 
         if position_ids is None:
             device = input_ids.device if input_ids is not None else inputs_embeds.device
