@@ -61,7 +61,7 @@ CUDA_VISIBLE_DEVICES=2 python3 lofit_trainer.py \
     --run_mode train_wandb \
     --output_file_name "./finetuned_outputs/${task}/${model_name}_${task}_Aonly_seed${seed}"\
     --applied_module attention \
-    --save_strategy epoch \
+    --save_strategy best \
     --l1_lambda 5e-3 \
     --eval_batch 32 \
     --train_size 300 \
@@ -81,7 +81,7 @@ CUDA_VISIBLE_DEVICES=2 python3 lofit_trainer.py \
     --run_mode train_wandb \
     --output_file_name "./finetuned_outputs/${task}/${model_name}_${task}_lofit_seed${seed}"\
     --applied_module attention \
-    --save_strategy epoch \
+    --save_strategy best \
     --l1_lambda 0 \
     --eval_batch 32 \
     --train_size 300 \
