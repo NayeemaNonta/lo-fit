@@ -701,15 +701,12 @@ class LlamaModel(LlamaPreTrainedModel):
         # #     past_key_values_length = past_key_values[0][0].shape[2]
         # #     seq_length_with_past = seq_length_with_past + past_key_values_length
         
-        if past_key_values is None:
-            past_key_values_length = 0
-        else:
-            try:
-                # Standard: tuple of tuples -> past_key_values[layer][0] is key tensor
-                past_key_values_length = past_key_values[0][0].shape[2]
-            except Exception:
-                # Fallback: maybe it's tuple of key/value tensors directly
-                past_key_values_length = past_key_values[0][0].shape[2]
+        past_key_values_length = 0
+        if past_key_values is not None:
+            first_layer = past_key_values[0]
+            if first_layer is not None and first_layer[0] is not None:
+                # standard case: (key, value) where key has shape [bsz, num_heads, seq_len, head_dim]
+                past_key_values_length = first_layer[0].shape[2]
 
         seq_length_with_past = seq_length + past_key_values_length
         
