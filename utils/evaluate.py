@@ -15,7 +15,7 @@ def evaluate_mquake(eval_dataset,model_name,model,tokenizer,fname,batch_size=16,
             inputs_b = inputs[i:i+batch_size]
             inputs_b = tokenizer(inputs_b, return_tensors='pt',padding=True)
             inputs_b= {k:v.to(model.device) for (k,v) in inputs_b.items()}
-            outputs = model.generate(**inputs_b,max_new_tokens=max_new_tokens,do_sample=False)
+            outputs = model.generate(**inputs_b,max_new_tokens=max_new_tokens,do_sample=False, use_cache=False)
             decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             generated.extend(decoded_outputs)
     corr=0
@@ -52,7 +52,7 @@ def evaluate_clutrr(eval_dataset,model_name,model,tokenizer,fname,batch_size=16,
             inputs_b = inputs[i:i+batch_size]
             inputs_b = tokenizer(inputs_b, return_tensors='pt',padding=True)
             inputs_b= {k:v.to(model.device) for (k,v) in inputs_b.items()}
-            outputs = model.generate(**inputs_b,max_new_tokens=max_new_tokens,do_sample=False)
+            outputs = model.generate(**inputs_b,max_new_tokens=max_new_tokens,do_sample=False, use_cache=False)
             decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             generated.extend(decoded_outputs)
     corr=0
