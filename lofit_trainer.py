@@ -252,23 +252,52 @@ elif args.save_strategy == 'no':
     save_total_limit = None
 else:
     raise ValueError(f'Save strategy {args.save_strategy} is not supported')
-training_args = TrainingArguments(
+
+from packaging import version
+import transformers
+
+kwargs = dict(
     output_dir=output_dir,
     learning_rate=lr,
     per_device_train_batch_size=train_batch_size,
     per_device_eval_batch_size=eval_batch_size,
     num_train_epochs=num_epoch,
-    evaluation_strategy="epoch",
     save_strategy=save_strategy,
     load_best_model_at_end=load_best_model_at_end,
-    save_total_limit = save_total_limit,
-    report_to='wandb',
-    logging_strategy='epoch',
-    seed = seed,
-    do_train = True,
-    do_eval = True,
-    bf16=bf16
+    save_total_limit=save_total_limit,
+    report_to="wandb",
+    logging_strategy="epoch",
+    seed=seed,
+    do_train=True,
+    do_eval=True,
+    bf16=bf16,
 )
+
+# handle API change
+if version.parse(transformers.__version__) >= version.parse("4.50.0"):
+    kwargs["eval_strategy"] = "epoch"
+else:
+    kwargs["evaluation_strategy"] = "epoch"
+
+training_args = TrainingArguments(**kwargs)
+
+# training_args = TrainingArguments(
+#     output_dir=output_dir,
+#     learning_rate=lr,
+#     per_device_train_batch_size=train_batch_size,
+#     per_device_eval_batch_size=eval_batch_size,
+#     num_train_epochs=num_epoch,
+#     evaluation_strategy="epoch",
+#     save_strategy=save_strategy,
+#     load_best_model_at_end=load_best_model_at_end,
+#     save_total_limit = save_total_limit,
+#     report_to='wandb',
+#     logging_strategy='epoch',
+#     seed = seed,
+#     do_train = True,
+#     do_eval = True,
+#     bf16=bf16
+# )
 torch.autograd.set_detect_anomaly(True)
 datasets = task_map[args.task]['dataloader'].load_data(train_size=args.train_size)
 print(f"Data loaded for task {args.task}")
