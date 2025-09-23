@@ -339,53 +339,37 @@ class LlamaAttention(nn.Module):
             key_states   = self.k_proj(hidden_states)
             value_states = self.v_proj(hidden_states)
 
-        # [B, H, T, D]
-        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states   = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-
-        # past length
-        past_len = 0
+        # 2) concat past FIRST (if any)
         if past_key_value is not None and past_key_value[0] is not None:
-            past_len = past_key_value[0].shape[-2]
-
-        # --- RoPE: build cache big enough and APPLY BEFORE concat ---
-        kv_seq_len = past_len + key_states.shape[-2]  # past + current
-        if position_ids is not None:
-            kv_seq_len = max(kv_seq_len, int(position_ids.max().item()) + 1)
-
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
-
-        # --- Concat past AFTER RoPE ---
-        if past_len > 0:
             key_states   = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
 
-        # cache for next step
-        present = (key_states, value_states) if use_cache else None
-
-        # expand kv to num_heads if needed
-        key_states   = repeat_kv(key_states,   self.num_key_value_groups)
-        value_states = repeat_kv(value_states, self.num_key_value_groups)
-
-        # use the ACTUAL kv length right now
+        # 3) now compute kv_len FROM THE CONCAT’ED KEYS
         kv_seq_len = key_states.shape[-2]
 
-        # attention
+        # 4) ensure RoPE cache is long enough for the positions you’ll index
+        if position_ids is not None:
+            kv_seq_len = max(kv_seq_len, int(position_ids.max().item()) + 1)
+
+        # 5) build RoPE with that kv_seq_len and apply to q/k
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+
+        # 6) repeat_kv (does not change seq_len dimension)
+        key_states   = repeat_kv(key_states, self.num_key_value_groups)
+        value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+        # 7) attention and SHAPE CHECKS using the recomputed kv_seq_len
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
-        if attn_weights.size() != (bsz, self.num_heads, q_len, kv_seq_len):
-            raise ValueError(
-                f"Attention weights should be of size {(bsz, self.num_heads, q_len, kv_seq_len)}, "
-                f"but is {attn_weights.size()}"
-            )
+
+        expected = (bsz, self.num_heads, q_len, kv_seq_len)
+        if attn_weights.size() != expected:
+            raise ValueError(f"Attention weights should be of size {expected}, but is {attn_weights.size()}")
 
         if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, q_len, kv_seq_len):
-                raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, q_len, kv_seq_len)}, "
-                    f"but is {attention_mask.size()}"
-                )
+            expected_mask = (bsz, 1, q_len, kv_seq_len)
+            if attention_mask.size() != expected_mask:
+                raise ValueError(f"Attention mask should be of size {expected_mask}, but is {attention_mask.size()}")
             attn_weights = attn_weights + attention_mask
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
