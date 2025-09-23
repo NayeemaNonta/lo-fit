@@ -263,22 +263,50 @@ class LlamaAttention(nn.Module):
         self.applied_module = None
         self._init_rope()
 
+    # def _init_rope(self):
+        # if self.config.rope_scaling is None:
+        #     self.rotary_emb = LlamaRotaryEmbedding(self.head_dim, max_position_embeddings=self.max_position_embeddings)
+        # else:
+        #     scaling_type = self.config.rope_scaling["type"]
+        #     scaling_factor = self.config.rope_scaling["factor"]
+        #     if scaling_type == "linear":
+        #         self.rotary_emb = LlamaLinearScalingRotaryEmbedding(
+        #             self.head_dim, max_position_embeddings=self.max_position_embeddings, scaling_factor=scaling_factor
+        #         )
+        #     elif scaling_type == "dynamic":
+        #         self.rotary_emb = LlamaDynamicNTKScalingRotaryEmbedding(
+        #             self.head_dim, max_position_embeddings=self.max_position_embeddings, scaling_factor=scaling_factor
+        #         )
+        #     else:
+        #         raise ValueError(f"Unknown RoPE scaling type {scaling_type}")
     def _init_rope(self):
-        if self.config.rope_scaling is None:
-            self.rotary_emb = LlamaRotaryEmbedding(self.head_dim, max_position_embeddings=self.max_position_embeddings)
-        else:
-            scaling_type = self.config.rope_scaling["type"]
-            scaling_factor = self.config.rope_scaling["factor"]
+        rope_scaling = getattr(self.config, "rope_scaling", None)
+
+        if rope_scaling is None:
+            # Default: no scaling
+            self.rotary_emb = LlamaRotaryEmbedding(
+                self.head_dim, max_position_embeddings=self.max_position_embeddings
+            )
+        elif isinstance(rope_scaling, dict):
+            scaling_type = rope_scaling.get("type", None)
+            scaling_factor = rope_scaling.get("factor", 1.0)
+
             if scaling_type == "linear":
                 self.rotary_emb = LlamaLinearScalingRotaryEmbedding(
-                    self.head_dim, max_position_embeddings=self.max_position_embeddings, scaling_factor=scaling_factor
+                    self.head_dim,
+                    max_position_embeddings=self.max_position_embeddings,
+                    scaling_factor=scaling_factor,
                 )
             elif scaling_type == "dynamic":
                 self.rotary_emb = LlamaDynamicNTKScalingRotaryEmbedding(
-                    self.head_dim, max_position_embeddings=self.max_position_embeddings, scaling_factor=scaling_factor
+                    self.head_dim,
+                    max_position_embeddings=self.max_position_embeddings,
+                    scaling_factor=scaling_factor,
                 )
             else:
-                raise ValueError(f"Unknown RoPE scaling type {scaling_type}")
+                raise ValueError(f"Unknown RoPE scaling type: {scaling_type}")
+        else:
+            raise ValueError(f"Invalid rope_scaling format: {rope_scaling}")
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -757,24 +785,6 @@ class LlamaForCausalLM(HF_LlamaForCausalLM):
         self.post_init()
 
     @classmethod
-    # def custom_from_pretrained(
-    #     cls,
-    #     pretrained_model_name_or_path,
-    #     *model_args,
-    #     cache_dir: Optional,
-        
-    #     applied_module: Optional[str] = 'attention',
-    #     applied_layers:Optional[List[int]] = None,
-    #     torch_dtype: Optional[torch.dtype] = torch.float32,
-    #     **kwargs,
-    # ):    
-    #     model = cls.from_pretrained(
-    #     pretrained_model_name_or_path,
-    #     torch_dtype=torch_dtype,
-    #     )
-    #     ### Set which modules and layers to apply LoFiT
-    #     model.model.set_applied_modules_to_layers(applied_module,applied_layers)
-    #     return model
     def custom_from_pretrained(
         cls,
         pretrained_model_name_or_path,
@@ -793,10 +803,6 @@ class LlamaForCausalLM(HF_LlamaForCausalLM):
         model.model.set_applied_modules_to_layers(applied_module, applied_layers)
         return model
 
-
-
-
-        
 
     def get_input_embeddings(self):
         return self.model.embed_tokens
