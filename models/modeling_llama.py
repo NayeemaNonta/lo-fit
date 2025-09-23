@@ -128,39 +128,70 @@ class LlamaRMSNorm(nn.Module):
         return self.weight * hidden_states.to(input_dtype)
 
 
-class LlamaRotaryEmbedding(torch.nn.Module):
+# class LlamaRotaryEmbedding(torch.nn.Module):
+#     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
+#         super().__init__()
+
+#         self.dim = dim
+#         self.max_position_embeddings = max_position_embeddings
+#         self.base = base
+#         inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2).float().to(device) / self.dim))
+#         self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+#         # Build here to make `torch.jit.trace` work.
+#         self._set_cos_sin_cache(
+#             seq_len=max_position_embeddings, device=self.inv_freq.device, dtype=torch.get_default_dtype()
+#         )
+
+#     def _set_cos_sin_cache(self, seq_len, device, dtype):
+#         self.max_seq_len_cached = seq_len
+#         t = torch.arange(self.max_seq_len_cached, device=device, dtype=self.inv_freq.dtype)
+
+#         freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+#         # Different from paper, but it uses a different permutation in order to obtain the same calculation
+#         emb = torch.cat((freqs, freqs), dim=-1)
+#         self.register_buffer("cos_cached", emb.cos()[None, None, :, :].to(dtype), persistent=False)
+#         self.register_buffer("sin_cached", emb.sin()[None, None, :, :].to(dtype), persistent=False)
+
+#     def forward(self, x, seq_len=None):
+#         # x: [bs, num_attention_heads, seq_len, head_size]
+#         if seq_len > self.max_seq_len_cached:
+#             self._set_cos_sin_cache(seq_len=seq_len, device=x.device, dtype=x.dtype)
+
+#         return (
+#             self.cos_cached[:, :, :seq_len, ...].to(dtype=x.dtype),
+#             self.sin_cached[:, :, :seq_len, ...].to(dtype=x.dtype),
+#         )
+
+class LlamaRotaryEmbedding(nn.Module):
     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
         super().__init__()
-
         self.dim = dim
-        self.max_position_embeddings = max_position_embeddings
-        self.base = base
-        inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2).float().to(device) / self.dim))
+        self.max_seq_len_cached = max_position_embeddings
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, device=device).float() / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self._set_cos_sin_cache(self.max_seq_len_cached, device=device, dtype=torch.float32)
 
-        # Build here to make `torch.jit.trace` work.
-        self._set_cos_sin_cache(
-            seq_len=max_position_embeddings, device=self.inv_freq.device, dtype=torch.get_default_dtype()
-        )
-
-    def _set_cos_sin_cache(self, seq_len, device, dtype):
-        self.max_seq_len_cached = seq_len
-        t = torch.arange(self.max_seq_len_cached, device=device, dtype=self.inv_freq.dtype)
-
+    def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
+        t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
         freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        # Different from paper, but it uses a different permutation in order to obtain the same calculation
         emb = torch.cat((freqs, freqs), dim=-1)
         self.register_buffer("cos_cached", emb.cos()[None, None, :, :].to(dtype), persistent=False)
         self.register_buffer("sin_cached", emb.sin()[None, None, :, :].to(dtype), persistent=False)
+        self.max_seq_len_cached = seq_len
 
-    def forward(self, x, seq_len=None):
-        # x: [bs, num_attention_heads, seq_len, head_size]
-        if seq_len > self.max_seq_len_cached:
-            self._set_cos_sin_cache(seq_len=seq_len, device=x.device, dtype=x.dtype)
+    def forward(self, x, seq_len=None, position_ids=None):
+        # Use max of seq_len and position_ids to size cache correctly
+        needed_len = seq_len
+        if position_ids is not None:
+            needed_len = max(needed_len, int(position_ids.max()) + 1)
+
+        if needed_len > self.max_seq_len_cached:
+            self._set_cos_sin_cache(needed_len, device=x.device, dtype=x.dtype)
 
         return (
-            self.cos_cached[:, :, :seq_len, ...].to(dtype=x.dtype),
-            self.sin_cached[:, :, :seq_len, ...].to(dtype=x.dtype),
+            self.cos_cached[:, :, :needed_len, :].to(dtype=x.dtype),
+            self.sin_cached[:, :, :needed_len, :].to(dtype=x.dtype),
         )
 
 
@@ -369,7 +400,9 @@ class LlamaAttention(nn.Module):
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None and past_key_value[0] is not None:
             kv_seq_len += past_key_value[0].shape[-2]
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        # cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len, position_ids=position_ids)
+        print("cos.shape:", cos.shape, "position_ids:", position_ids)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 
         if past_key_value is not None and past_key_value[0] is not None:
