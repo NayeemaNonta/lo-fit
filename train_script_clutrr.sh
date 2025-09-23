@@ -44,7 +44,7 @@
 #     --seed $seed;
 ## Uncomment the following to run experiments for: llama2_7B
 set -euo pipefail
-model_name="llama3_8B_instruct";
+model_name="llama3_8B";
 task="clutrr";
 seed=42;
 CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
