@@ -282,11 +282,13 @@ class LlamaAttention(nn.Module):
     def _init_rope(self):
         rope_scaling = getattr(self.config, "rope_scaling", None)
 
-        if rope_scaling is None:
-            # Default: no scaling
+        if rope_scaling is None or rope_scaling.get("type", None) is None:
+            # Default: vanilla RoPE
             self.rotary_emb = LlamaRotaryEmbedding(
-                self.head_dim, max_position_embeddings=self.max_position_embeddings
+                self.head_dim,
+                max_position_embeddings=self.max_position_embeddings,
             )
+            return
         elif isinstance(rope_scaling, dict):
             scaling_type = rope_scaling.get("type", None)
             scaling_factor = rope_scaling.get("factor", 1.0)
