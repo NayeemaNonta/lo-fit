@@ -390,7 +390,9 @@ class LlamaAttention(nn.Module):
         print(f"[DEBUG] kv_seq_len = {kv_seq_len}, query_states={query_states.shape}, key_states={key_states.shape}")
 
         # Apply rotary embedding
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        # cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        max_pos = position_ids.max().item() + 1
+        cos, sin = self.rotary_emb(value_states, seq_len=max_pos)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 
         # Cache for next step
