@@ -361,23 +361,25 @@ class LlamaAttention(nn.Module):
         #     key_states = torch.cat([past_key_value[0], key_states], dim=2)
         #     value_states = torch.cat([past_key_value[1], value_states], dim=2)
         
-        # If past available, concat immediately
+        # kv length = current
+        kv_seq_len = key_states.shape[-2]
+
+        # Ensure RoPE long enough
+        if position_ids is not None:
+            needed_len = int(position_ids.max().item()) + 1
+            kv_seq_len = max(kv_seq_len, needed_len)
+
+        # Apply RoPE BEFORE concat
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+
+        # Now concat past
         if past_key_value is not None and past_key_value[0] is not None:
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
 
         # kv length AFTER concat
         kv_seq_len = key_states.shape[-2]
-
-        # Ensure RoPE long enough for position_ids
-        if position_ids is not None:
-            needed_len = int(position_ids.max().item()) + 1
-            kv_seq_len = max(kv_seq_len, needed_len)
-
-        # Apply RoPE on query/key
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
-
 
 
         past_key_value = (key_states, value_states) if use_cache else None
