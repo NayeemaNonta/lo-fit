@@ -47,25 +47,25 @@ set -euo pipefail
 model_name="llama3.2_1B";
 task="clutrr";
 seed=42;
-# CUDA_VISIBLE_DEVICES=0 python3 lofit_trainer.py \
-#     --task $task \
-#     --base_model_name $model_name \
-#     --apply_chat_template False \
-#     --ft_method lofit \
-#     --lofit_component A \
-#     --use_topk_heads 160 \
-#     --lr 5e-4 \
-#     --train_batch 8 \
-#     --num_epoch 5 \
-#     --output_dir "./finetuned_checkpoints/${task}/${model_name}_${task}_Aonly_seed${seed}"\
-#     --run_mode train_wandb \
-#     --output_file_name "./finetuned_outputs/${task}/${model_name}_${task}_Aonly_seed${seed}"\
-#     --applied_module attention \
-#     --save_strategy epoch \
-#     --l1_lambda 5e-3 \
-#     --eval_batch 32 \
-#     --train_size 300 \
-#     --seed $seed;
+CUDA_VISIBLE_DEVICES=2 python3 lofit_trainer.py \
+    --task $task \
+    --base_model_name $model_name \
+    --apply_chat_template False \
+    --ft_method lofit \
+    --lofit_component A \
+    --use_topk_heads 160 \
+    --lr 5e-4 \
+    --train_batch 8 \
+    --num_epoch 1 \
+    --output_dir "./finetuned_checkpoints/${task}/${model_name}_${task}_Aonly_seed${seed}"\
+    --run_mode train_wandb \
+    --output_file_name "./finetuned_outputs/${task}/${model_name}_${task}_Aonly_seed${seed}"\
+    --applied_module attention \
+    --save_strategy epoch \
+    --l1_lambda 5e-3 \
+    --eval_batch 32 \
+    --train_size 300 \
+    --seed $seed;
 CUDA_VISIBLE_DEVICES=2 python3 lofit_trainer.py \
     --task $task  \
     --base_model_name $model_name \
